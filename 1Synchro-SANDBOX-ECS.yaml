@@ -1,0 +1,826 @@
+Description: 
+    VPT-SANDBOX
+
+Parameters:
+
+    Project :
+        Description : Project name for tags
+        Type: String
+        Default: VPT
+
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+        Default: SANDBOX
+
+    VpcCIDR: 
+        Description: Please enter the IP range (CIDR notation) for this VPC
+        Type: String
+        Default: 10.94.72.0/22
+
+    PublicSubnet1CIDR:
+        Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+        Type: String
+        Default: 10.94.72.0/27
+
+    PublicSubnet2CIDR:
+        Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+        Type: String
+        Default: 10.94.72.32/27
+
+    PrivateSubnet1CIDR:
+        Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+        Type: String
+        Default: 10.94.72.128/26
+
+    PrivateSubnet2CIDR:
+        Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+        Type: String
+        Default: 10.94.72.192/26
+        
+    RDSPrivateSubnet1CIDR:
+        Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+        Type: String
+        Default: 10.94.72.64/27
+
+    RDSPrivateSubnet2CIDR:
+        Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+        Type: String
+        Default: 10.94.72.96/27
+        
+    AvailabilityZone1:
+        Description: Please enter the Availability Zone1
+        Type: String
+        Default: us-east-1a
+         
+    AvailabilityZone2:
+        Description: Please enter the Availability Zone2
+        Type: String
+        Default: us-east-1b
+
+    InstanceType: 
+        Description: Which instance type should we use to build the ECS cluster?
+        Type: String
+        Default: t2.micro 
+        #m1.medium
+
+    ClusterSize:
+        Description: How many ECS hosts do you want to initially deploy?
+        Type: Number
+        Default: 4        
+    Cluster:
+        Description: Please provide the ECS Cluster ID that this service should run on
+        Type: String
+
+    DesiredCount: 
+        Description: How many instances of this task should we run across our cluster?
+        Type: Number
+        Default: 2
+
+    Path: 
+        Description: The path to register with the Application Load Balancer
+        Type: String
+        Default: /devops-healthcheck         
+Mappings:
+
+    # These are the latest ECS optimized AMIs
+    # You can find the latest available on this page of our documentation:
+    # http://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
+    # (note the AMI identifier is region specific) 
+
+    AWSRegionToAMI:
+        us-east-1:
+            AMI: ami-9eb4b1e5 #ami-d61027ad  #ami-b2df2ca4
+        us-east-2:
+            AMI: ami-1c002379 #ami-bb8eaede  #ami-832b0ee6
+        us-west-1:
+            AMI: ami-dd104dbd
+        us-west-2:
+            AMI: ami-1d668865
+        eu-west-1:
+            AMI: ami-8fcc32f6
+        eu-west-2:
+            AMI: ami-cb1101af
+        eu-central-1:
+            AMI: ami-0460cb6b
+        ap-northeast-1:
+            AMI: ami-b743bed1
+        ap-southeast-1:
+            AMI: ami-9d1f7efe
+        ap-southeast-2:
+            AMI: ami-c1a6bda2
+        ca-central-1:
+            AMI: ami-b677c9d2
+
+Resources:
+
+    VPC: 
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: !Ref VpcCIDR
+            Tags: [
+            { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [  { "Ref": "Project" }, { "Ref" : "EnvironmentName" },"VPC" ] ] } },
+            { "Key" : "Project", "Value" : { "Ref": "Project" } },
+            { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+            ]
+            
+    InternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+             Tags : [
+          { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [ { "Ref": "Project" }, { "Ref": "EnvironmentName" },"IGW" ] ] } },
+          { "Key" : "Project", "Value" : { "Ref": "Project" } },
+          { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+          ]
+            
+    InternetGatewayAttachment:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            InternetGatewayId: !Ref InternetGateway
+            VpcId: !Ref VPC
+
+    PublicSubnet1: 
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Ref AvailabilityZone1
+            CidrBlock: !Ref PublicSubnet1CIDR
+            MapPublicIpOnLaunch: true
+            Tags : [
+            { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [ { "Ref": "Project" }, { "Ref": "EnvironmentName" },"PUBLIC-SUBNET" ] ] } },
+            { "Key" : "AZ", "Value" : AvailabilityZone},
+            { "Key" : "Project", "Value" : { "Ref": "Project" } },
+            { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+            ]
+
+    PublicSubnet2: 
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Ref AvailabilityZone2
+            CidrBlock: !Ref PublicSubnet2CIDR
+            MapPublicIpOnLaunch: true
+            Tags : [
+            { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [ { "Ref": "Project" }, { "Ref": "EnvironmentName" },"PUBLIC-SUBNET" ] ] } },
+            { "Key" : "AZ", "Value" : AvailabilityZone},
+            { "Key" : "Project", "Value" : { "Ref": "Project" } },
+            { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+            ]
+
+    PrivateSubnet1: 
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Ref AvailabilityZone1
+            CidrBlock: !Ref PrivateSubnet1CIDR
+            MapPublicIpOnLaunch: false
+            Tags : [
+            { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [  { "Ref": "Project" }, { "Ref": "EnvironmentName" },"PRIVATE-SUBNET" ] ] } },
+            { "Key" : "AZ", "Value" : AvailabilityZone},
+            { "Key" : "Project", "Value" : { "Ref": "Project" } },
+            { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+            ]
+
+    PrivateSubnet2: 
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Ref AvailabilityZone2
+            CidrBlock: !Ref PrivateSubnet2CIDR
+            MapPublicIpOnLaunch: false
+            Tags : [
+            { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [ { "Ref": "Project" }, { "Ref": "EnvironmentName" },"PRIVATE-SUBNET" ] ] } },
+            { "Key" : "AZ", "Value" : AvailabilityZone},
+            { "Key" : "Project", "Value" : { "Ref": "Project" } },
+            { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+            ]
+
+    NatGateway1EIP:
+        Type: AWS::EC2::EIP
+        DependsOn: InternetGatewayAttachment
+        Properties: 
+            Domain: vpc
+
+    NatGateway2EIP:
+        Type: AWS::EC2::EIP
+        DependsOn: InternetGatewayAttachment
+        Properties:
+            Domain: vpc
+
+    NatGateway1: 
+        Type: AWS::EC2::NatGateway
+        Properties: 
+            AllocationId: !GetAtt NatGateway1EIP.AllocationId
+            SubnetId: !Ref PublicSubnet1
+
+    NatGateway2: 
+        Type: AWS::EC2::NatGateway
+        Properties:
+            AllocationId: !GetAtt NatGateway2EIP.AllocationId
+            SubnetId: !Ref PublicSubnet2
+
+    PublicRouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties: 
+            VpcId: !Ref VPC
+            Tags : [
+             { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [  { "Ref": "Project" }, { "Ref" : "EnvironmentName" },"PUBLIC-ROUTES" ] ] } },
+             { "Key" : "Project", "Value" : { "Ref": "Project" } },
+             { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+            ]
+
+    DefaultPublicRoute: 
+        Type: AWS::EC2::Route
+        DependsOn: InternetGatewayAttachment
+        Properties: 
+            RouteTableId: !Ref PublicRouteTable
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId: !Ref InternetGateway
+
+    PublicSubnet1RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            SubnetId: !Ref PublicSubnet1
+
+    PublicSubnet2RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            SubnetId: !Ref PublicSubnet2
+    
+
+    PrivateRouteTable1:
+        Type: AWS::EC2::RouteTable
+        Properties: 
+            VpcId: !Ref VPC
+            Tags : [
+              { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [ { "Ref": "Project" }, { "Ref" : "EnvironmentName" },{ "Ref": "AvailabilityZone1" },"PRIVATE-ROUTES" ] ] } },
+              { "Key" : "Project", "Value" : { "Ref": "Project" } },
+              { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+            ]                  
+
+    DefaultPrivateRoute1:
+        Type: AWS::EC2::Route
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable1
+            DestinationCidrBlock: 0.0.0.0/0
+            NatGatewayId: !Ref NatGateway1
+
+    PrivateSubnet1RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable1
+            SubnetId: !Ref PrivateSubnet1
+
+    PrivateRouteTable2:
+        Type: AWS::EC2::RouteTable
+        Properties: 
+            VpcId: !Ref VPC
+            Tags: 
+            Tags : [
+              { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [ { "Ref": "Project" }, { "Ref" : "EnvironmentName" },{ "Ref": "AvailabilityZone2" },"PRIVATE-ROUTES" ] ] } },
+              { "Key" : "Project", "Value" : { "Ref": "Project" } },
+              { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+            ]  
+
+    DefaultPrivateRoute2:
+        Type: AWS::EC2::Route
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable2
+            DestinationCidrBlock: 0.0.0.0/0
+            NatGatewayId: !Ref NatGateway2
+
+    PrivateSubnet2RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable2
+            SubnetId: !Ref PrivateSubnet2
+
+
+    RDSPrivateSubnet1: 
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Ref AvailabilityZone1
+            CidrBlock: !Ref RDSPrivateSubnet1CIDR
+            MapPublicIpOnLaunch: false
+            Tags : [
+            { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [  { "Ref": "Project" }, { "Ref": "EnvironmentName" },"RDSPRIVATE-SUBNET" ] ] } },
+            { "Key" : "AZ", "Value" : AvailabilityZone1},
+            { "Key" : "Project", "Value" : { "Ref": "Project" } },
+            { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+            ]
+
+    RDSPrivateRouteTable1:
+        Type: AWS::EC2::RouteTable
+        Properties: 
+            VpcId: !Ref VPC
+            Tags : [
+              { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [ { "Ref": "Project" }, { "Ref" : "EnvironmentName" },{ "Ref": "AvailabilityZone1" },"RDSPRIVATE-ROUTES" ] ] } },
+              { "Key" : "Project", "Value" : { "Ref": "Project" } },
+              { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+            ]                  
+
+    DefaultRDSPrivateRoute1:
+        Type: AWS::EC2::Route
+        Properties:
+            RouteTableId: !Ref RDSPrivateRouteTable1
+            DestinationCidrBlock: 0.0.0.0/0
+            NatGatewayId: !Ref NatGateway1
+
+    RDSPrivateSubnet1RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref RDSPrivateRouteTable1
+            SubnetId: !Ref RDSPrivateSubnet1
+
+    RDSPrivateSubnet2: 
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Ref AvailabilityZone2
+            CidrBlock: !Ref RDSPrivateSubnet2CIDR
+            MapPublicIpOnLaunch: false
+            Tags : [
+            { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [  { "Ref": "Project" }, { "Ref": "EnvironmentName" },"RDSPRIVATE-SUBNET" ] ] } },
+            { "Key" : "AZ", "Value" : AvailabilityZone2},
+            { "Key" : "Project", "Value" : { "Ref": "Project" } },
+            { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+            ]
+
+    RDSPrivateRouteTable2:
+        Type: AWS::EC2::RouteTable
+        Properties: 
+            VpcId: !Ref VPC
+            Tags : [
+              { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [ { "Ref": "Project" }, { "Ref" : "EnvironmentName" },{ "Ref": "AvailabilityZone2" },"RDSPRIVATE-ROUTES" ] ] } },
+              { "Key" : "Project", "Value" : { "Ref": "Project" } },
+              { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+            ]                  
+
+    DefaultRDSPrivateRoute2:
+        Type: AWS::EC2::Route
+        Properties:
+            RouteTableId: !Ref RDSPrivateRouteTable2
+            DestinationCidrBlock: 0.0.0.0/0
+            NatGatewayId: !Ref NatGateway2
+
+    RDSPrivateSubnet2RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref RDSPrivateRouteTable2
+            SubnetId: !Ref RDSPrivateSubnet2			
+
+    VPTInstanceRole: {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [ "ec2.amazonaws.com" ]
+              },
+              "Action": [ "sts:AssumeRole" ]
+            }
+          ]
+        },
+        "Path": "/",
+        "Policies": [
+          {
+            "PolicyName": "ApplicationPolicy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "elasticbeanstalk:*",
+                    "elastiCache:*",
+                    "ec2:*",
+                    "elasticloadbalancing:*",
+                    "autoscaling:*",
+                    "cloudwatch:*",
+                    "dynamodb:*",
+                    "s3:*",
+                    "sns:*",
+                    "sqs:*",
+                    "cloudformation:*",
+                    "rds:*",
+                    "iam:AddRoleToInstanceProfile",
+                    "iam:CreateInstanceProfile",
+                    "iam:CreateRole",
+                    "iam:PassRole",
+                    "iam:ListInstanceProfiles"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+    
+    VPTInstanceProfile: {
+       "Type": "AWS::IAM::InstanceProfile",
+       "Properties": {
+          "Path": "/",
+          "Roles": [ { "Ref": "VPTInstanceRole" } ]
+       }
+    }
+
+    VPTECSRole:
+        Type: AWS::IAM::Role
+        Properties: 
+            Path: /
+            RoleName: { "Fn::Join": [ "-", [ { "Ref": "Project" }, { "Ref" : "EnvironmentName" },"ECSServiceRole" ] ] }
+            AssumeRolePolicyDocument: |
+                {
+                    "Statement": [{
+                        "Action": "sts:AssumeRole",
+                        "Effect": "Allow",
+                        "Principal": { 
+                            "Service": "ec2.amazonaws.com" 
+                        }
+                    }]
+                }
+            Policies: 
+                - PolicyName: ecs-service
+                  PolicyDocument: |
+                    {
+                        "Statement": [{
+                            "Effect": "Allow",
+                            "Action": [
+                                "ecs:CreateCluster",
+                                "ecs:DeregisterContainerInstance",
+                                "ecs:DiscoverPollEndpoint",
+                                "ecs:Poll",
+                                "ecs:RegisterContainerInstance",
+                                "ecs:StartTelemetrySession",
+                                "ecs:Submit*",
+                                "logs:CreateLogStream",
+                                "logs:PutLogEvents",
+                                "ecr:BatchCheckLayerAvailability",
+                                "ecr:BatchGetImage",
+                                "ecr:GetDownloadUrlForLayer",
+                                "ecr:GetAuthorizationToken"
+                            ],
+                            "Resource": "*"
+                        }]
+                    }
+
+    VPTECSInstanceProfile: 
+            Type: AWS::IAM::InstanceProfile
+            Properties:
+                Path: /
+                Roles: 
+                    - !Ref VPTECSRole
+
+  
+    VPTECSHostSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties: 
+            VpcId: !Ref VPC
+            GroupDescription: Access to the ECS hosts and the tasks/containers that run on them
+            SecurityGroupIngress:
+            # Only allow inbound access to ECS from the ELB
+              - SourceSecurityGroupId: !Ref VPTELBSecurityGroup 
+                IpProtocol: -1
+            Tags : [
+                 { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [  { "Ref": "Project" }, { "Ref" : "EnvironmentName" },"SG01-ECS" ] ] } },
+                { "Key" : "Project", "Value" : { "Ref": "Project" } },
+                { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+                ]
+
+    VPTELBSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties: 
+            VpcId: !Ref VPC
+            GroupDescription: Access to the load balancer on port 80 that sits in front of ECS
+            SecurityGroupIngress: [
+                {
+                # Allow access from anywhere to our ECS services
+                "IpProtocol": "tcp",
+                "FromPort": "80",
+                "ToPort": "80",
+                "CidrIp": "0.0.0.0/0"
+                }
+            ]
+            Tags : [
+              { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [  { "Ref": "Project" }, { "Ref" : "EnvironmentName" },"SG01-ELB" ] ] } },
+              { "Key" : "Project", "Value" : { "Ref": "Project" } },
+              { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+        ]
+            
+    VPCSecurityGroup : 
+        Type : AWS::EC2::SecurityGroup
+        Properties: 
+            VpcId: !Ref VPC
+            GroupDescription: { "Fn::Join": [ "-", [ { "Ref": "Project" }, { "Ref" : "EnvironmentName" },"SG01-APPTIER" ] ] }
+            SecurityGroupIngress: [
+            {"IpProtocol": "tcp", "FromPort" : "22",  "ToPort" : "22",  "CidrIp" : "0.0.0.0/0" },
+            {"IpProtocol": "tcp", "FromPort": "80", "ToPort": "80", "CidrIp": "0.0.0.0/0" },
+            {"IpProtocol": "tcp", "FromPort": "443", "ToPort": "443", "CidrIp": "0.0.0.0/0" }
+            ]
+            Tags : [
+              { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [ { "Ref": "Project" }, { "Ref" : "EnvironmentName" },"SG01-APPTIER" ] ] }},
+              { "Key" : "Project", "Value" : { "Ref": "Project" } },
+              { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+            ]
+
+    VPTECSCluster:
+        Type: AWS::ECS::Cluster
+        Properties:
+            ClusterName: !Ref EnvironmentName
+
+    ECSAutoScalingGroup:
+        Type: AWS::AutoScaling::AutoScalingGroup
+        Properties: 
+            VPCZoneIdentifier: [
+            {
+                "Ref": "PrivateSubnet1"
+            }
+            ]
+            LaunchConfigurationName: !Ref ECSLaunchConfiguration
+            MinSize: !Ref ClusterSize
+            MaxSize: !Ref ClusterSize
+            DesiredCapacity: !Ref ClusterSize
+            Tags : [
+              { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [  { "Ref": "Project" }, { "Ref" : "EnvironmentName" },"ECS-HOST" ] ] },"PropagateAtLaunch":"true" },
+              { "Key" : "Project", "Value" : { "Ref": "Project" } ,"PropagateAtLaunch":"true"},
+              { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" },"PropagateAtLaunch":"true" }
+            ]            
+        CreationPolicy:
+            ResourceSignal: 
+                Timeout: PT15M
+        UpdatePolicy:
+            AutoScalingRollingUpdate:
+                MinInstancesInService: 1
+                MaxBatchSize: 1
+                PauseTime: PT15M
+                WaitOnResourceSignals: true
+
+    ECSLaunchConfiguration:
+        Type: AWS::AutoScaling::LaunchConfiguration
+        Properties:
+            ImageId:  !FindInMap [AWSRegionToAMI, !Ref "AWS::Region", AMI]
+            InstanceType: !Ref InstanceType
+            SecurityGroups: 
+                - !Ref VPTECSHostSecurityGroup
+            IamInstanceProfile: !Ref VPTECSInstanceProfile
+            UserData: 
+                "Fn::Base64": !Sub |
+                    #!/bin/bash
+                    yum install -y aws-cfn-bootstrap
+                    /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSLaunchConfiguration
+                    /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSAutoScalingGroup
+
+        Metadata:
+            AWS::CloudFormation::Init:
+                config:
+                    commands:
+                        01_add_instance_to_cluster:
+                            command: !Sub echo ECS_CLUSTER=${VPTECSCluster} >> /etc/ecs/ecs.config
+                    files:
+                        "/etc/cfn/cfn-hup.conf":
+                            mode: 000400
+                            owner: root
+                            group: root
+                            content: !Sub |
+                                [main]
+                                stack=${AWS::StackId}
+                                region=${AWS::Region}
+                        
+                        "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
+                            content: !Sub |
+                                [cfn-auto-reloader-hook]
+                                triggers=post.update
+                                path=Resources.ECSLaunchConfiguration.Metadata.AWS::CloudFormation::Init
+                                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSLaunchConfiguration
+
+                    services: 
+                        sysvinit:
+                            cfn-hup: 
+                                enabled: true
+                                ensureRunning: true
+                                files: 
+                                    - /etc/cfn/cfn-hup.conf
+                                    - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+                                
+    VPTLoadBalancer:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties:
+            Name: !Ref EnvironmentName
+            Subnets: [
+            {
+                "Ref": "PrivateSubnet1"
+            },
+            {
+                "Ref": "PrivateSubnet2"
+            }
+            ]
+            SecurityGroups: [
+            {
+                "Ref": "VPCSecurityGroup"
+            },
+            {
+            "Fn::GetAtt": [
+              "VPTELBSecurityGroup",
+              "GroupId"
+                ]
+            }
+            ]
+            Tags : [
+              { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [  { "Ref": "Project" }, { "Ref" : "EnvironmentName" },"ECS-ELB" ] ] } },
+              { "Key" : "Project", "Value" : { "Ref": "Project" } },
+              { "Key" : "EnvironmentName", "Value" : { "Ref": "EnvironmentName" } }
+            ]
+
+    VPTLoadBalancerListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            LoadBalancerArn: !Ref VPTLoadBalancer
+            Port: 80
+            Protocol: HTTP 
+            DefaultActions: 
+                - Type: forward
+                  TargetGroupArn: !Ref DefaultTargetGroup
+    
+    # We define a default target group here, as this is a mandatory Parameters
+    # when creating an Application Load Balancer Listener. This is not used, instead
+    # a target group is created per-service in each service template (../services/*)
+    DefaultTargetGroup:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            Name: { "Fn::Join": [ "-", [  { "Ref": "Project" }, { "Ref" : "EnvironmentName" },"ECS-ELB-TargetGroup" ] ] }
+            VpcId: !Ref VPC
+            Port: 80
+            Protocol: HTTP
+###
+    Service: 
+        Type: AWS::ECS::Service
+        DependsOn: ListenerRule
+        Properties: 
+            Cluster: !Ref Cluster
+            Role: !Ref ELBECSServiceRole
+            DesiredCount: !Ref DesiredCount
+            TaskDefinition: !Ref TaskDefinition
+            LoadBalancers: 
+                - ContainerName: "devops-healthcheck"
+                  ContainerPort: 80
+                  TargetGroupArn: !Ref TargetGroup
+
+    TaskDefinition:
+        Type: AWS::ECS::TaskDefinition
+        Properties:
+            Family: devops-healthcheck
+            ContainerDefinitions:
+                - Name: devops-healthcheck
+                  Essential: true
+                  Image: 865628331058.dkr.ecr.us-east-1.amazonaws.com/vpt-sandbox:devops-healthcheck
+                  Cpu: 10
+                  Memory: 128
+                  PortMappings:
+                    - ContainerPort: 80
+                      HostPort: 80
+                  LogConfiguration:
+                    LogDriver: awslogs
+                    Options:
+                        awslogs-group: !Ref AWS::StackName
+                        awslogs-region: !Ref AWS::Region
+    
+    CloudWatchLogsGroup:
+        Type: AWS::Logs::LogGroup
+        Properties: 
+            LogGroupName: !Ref AWS::StackName
+            RetentionInDays: 365  
+
+    TargetGroup:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            VpcId: !Ref VPC
+            Port: 80
+            Protocol: HTTP
+            Matcher: 
+                HttpCode: 200-299
+            HealthCheckIntervalSeconds: 10
+            HealthCheckPath: /devops-healthcheck
+            HealthCheckProtocol: HTTP
+            HealthCheckTimeoutSeconds: 5
+            HealthyThresholdCount: 2
+    
+    ListenerRule:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        Properties:
+            ListenerArn: !Ref VPTLoadBalancerListener
+            Priority: 2
+            Conditions:
+                - Field: path-pattern
+                  Values: 
+                    - !Ref Path
+            Actions:
+                - TargetGroupArn: !Ref TargetGroup
+                  Type: forward
+
+    # This IAM Role grants the service access to register/unregister with the 
+    # Application Load Balancer (ALB). It is based on the default documented here:
+    # http://docs.aws.amazon.com/AmazonECS/latest/developerguide/service_IAM_role.html
+    ELBECSServiceRole: 
+        Type: AWS::IAM::Role
+        Properties: 
+            RoleName: { "Fn::Join": [ "-", [ { "Ref": "Project" }, { "Ref" : "EnvironmentName" },"ELB-ECS-ServiceRole" ] ] }
+            Path: /
+            AssumeRolePolicyDocument: |
+                {
+                    "Statement": [{
+                        "Effect": "Allow",
+                        "Principal": { "Service": [ "ecs.amazonaws.com" ]},
+                        "Action": [ "sts:AssumeRole" ]
+                    }]
+                }
+            Policies: 
+                - PolicyName: elb-ecs-service
+                  PolicyDocument: 
+                    {
+                        "Version": "2012-10-17",
+                        "Statement": [{
+                                "Effect": "Allow",
+                                "Action": [
+                                    "ec2:AuthorizeSecurityGroupIngress",
+                                    "ec2:Describe*",
+                                    "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
+                                    "elasticloadbalancing:Describe*",
+                                    "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
+                                    "elasticloadbalancing:DeregisterTargets",
+                                    "elasticloadbalancing:DescribeTargetGroups",
+                                    "elasticloadbalancing:DescribeTargetHealth",
+                                    "elasticloadbalancing:RegisterTargets"
+                                ],
+                                "Resource": "*"
+                        }]
+                    }
+###########                                
+Outputs: 
+
+    VPC: 
+        Description: A reference to the created VPC
+        Value: !Ref VPC
+
+    PublicSubnets:
+        Description: A list of the public subnets
+        Value: !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2 ]]
+
+    PrivateSubnets:
+        Description: A list of the private subnets
+        Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
+
+    PublicSubnet1:
+        Description: A reference to the public subnet in the 1st Availability Zone
+        Value: !Ref PublicSubnet1
+
+    PublicSubnet2: 
+        Description: A reference to the public subnet in the 2nd Availability Zone
+        Value: !Ref PublicSubnet2
+
+    PrivateSubnet1:
+        Description: A reference to the private subnet in the 1st Availability Zone
+        Value: !Ref PrivateSubnet1
+
+    PrivateSubnet2: 
+        Description: A reference to the private subnet in the 2nd Availability Zone
+        Value: !Ref PrivateSubnet2
+ 
+    VPTECSHostSecurityGroup: 
+        Description: A reference to the security group for ECS hosts
+        Value: !Ref VPTECSHostSecurityGroup
+
+    VPTELBSecurityGroup:
+        Description: A reference to the security group for load balancers
+        Value: !Ref VPTELBSecurityGroup     
+
+    VPCDefaultSecurityGroup:
+        Description : VPC Default Security Group ..
+        Value :  { "Fn::GetAtt" : ["VPC", "DefaultSecurityGroup"] }
+
+    VPCSecurityGroup:
+        Description : VPC Security Group created by this stack
+        Value :  { "Ref": "VPCSecurityGroup" }
+        
+    Cluster:
+        Description: A reference to the ECS cluster
+        Value: !Ref VPTECSCluster
+    
+    LoadBalancer:
+        Description: A reference to the Application Load Balancer
+        Value: !Ref VPTLoadBalancer
+
+    LoadBalancerUrl:
+        Description: The URL of the ALB
+        Value: !GetAtt VPTLoadBalancer.DNSName
+
+    Listener:
+        Description: A reference to a port 80 listener
+        Value: !Ref VPTLoadBalancerListener         
